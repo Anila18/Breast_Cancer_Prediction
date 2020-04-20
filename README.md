@@ -1,2 +1,2 @@
 # Breast_Cancer_Prediction
-Ensemble
+Application of Ensemble Machine Learning classification approach, with SVM, Logistic Regression, Decision Trees as sub Models.
