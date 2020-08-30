@@ -1,0 +1,176 @@
+{
+  "Comment": "Step Function to Automate the deployment of resources",
+  "StartAt": "MAIN: IAM Roles Lambda",
+  "States": {
+    "MAIN: IAM Roles Lambda": {
+      "Comment": "Lambda Execution to check IAM Roles",
+      "Type": "Task",
+      "Resource": "",
+      "ResultPath": "$.iamroles",
+      "Next": "Check IAM Roles"
+    },
+    "Check IAM Roles":{
+      "Comment": " Checking SVC_LAMBDA_SPLUNK_SR,SVC_FIREHOSE_SPLUNK_SR,SVC_CW_FINRA_VPC_SPLUNK_SR Roles",
+      "Type": "Choice",
+      "Choices": [
+        {
+            "Variable": "$.iamroles",
+            "BooleanEquals": true,
+            "Next": "MAIN: KMS KEY LAMBDA"  
+        },
+        {
+            "Variable": "$.iamroles",
+            "BooleanEquals": false,
+            "Next": "End State" 
+        }
+      ],
+      "Default": "DefaultState"
+    },
+    "MAIN: KMS KEY LAMBDA": {
+      "Comment": "Lambda Execution to check KMS Key alias/splunk-s3",
+      "Type": "Task",
+      "Resource": "",
+      "ResultPath": "$.kmskey",
+      "Next": "Check KMS Key"
+    },
+    "Check KMS Key":{
+      "Comment": "Checking for KMS key alias/splunk-s3",
+      "Type": "Choice",
+      "Choices": [
+        {
+            "Variable": "$.kmskey",
+            "BooleanEquals": true,
+            "Next": "Check Service"  
+        },
+        {
+            "Variable": "$.kmskey",
+            "BooleanEquals": false,
+            "Next": "End State" 
+        }
+      ],
+      "Default": "DefaultState" 
+    },
+    "Check Service":{
+      "Comment":"Check AWS Service to Deploy the resources",
+      "Type":"Choice",
+      "Choices": [
+        {
+          "Variable": "$.service",
+          "StringEquals": "VPC",
+          "Next": "Create SPLUNK-VPC-TRANSFORM"
+        },
+        {
+          "Variable": "$.service",
+          "IsNull": true,
+          "Next": "Create SPLUNK-VPC-TRANSFORM"
+        }
+      ],
+      "Default": "Create SPLUNK-VPC-TRANSFORM"
+    },
+    "Create SPLUNK-VPC-TRANSFORM":{
+      "Comment": "Create SPLUNK-VPC-TRANSFORM Lambda Function",
+      "Type":"Task",
+      "Resource":"",
+      "Next":"Wait for Lambda creation",
+      "Retry": [ {
+        "ErrorEquals": [ "States.Timeout" ],
+        "IntervalSeconds": 3,
+        "MaxAttempts": 2,
+        "BackoffRate": 1.5
+      } ]
+    },
+    "Wait for Lambda creation":{
+      "Comment": "Waiting to Complete SPLUNK-VPC-TRANSFORM Lambda Function",
+      "Type": "Wait",
+      "Seconds": 10,
+      "Next": "Create SPLUNK-VPC-<SDLC> DS"
+    },
+    "Create SPLUNK-VPC-<SDLC> DS":{
+      "Comment": "Creation of SPLUNK-VPC-<SDLC> Delivery Stream using CFT",
+      "Type": "Task",
+      "Resource":"",
+      "Next":"Wait for DS",
+      "Retry": [ {
+        "ErrorEquals": [ "States.Timeout" ],
+        "IntervalSeconds": 3,
+        "MaxAttempts": 2,
+        "BackoffRate": 1.5
+      } ]
+    },
+    "Wait for DS":{
+      "Comment": "Waiting to complete SPLUNK-VPC-<SDLC> Delivery Stream",
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Put Subscription VPC-DS"  
+    },
+    "Put Subscription VPC-DS":{
+      "Comment": "Lambda to do put subscription on vpcflow log group to SPLUNK-VPC-<SDLC> Delivery Stream",
+      "Type": "Task",
+      "Resource":"",
+      "Next":"Create SPLUNK-LAMBDA-SPLUNK",
+      "Retry": [ {
+        "ErrorEquals": [ "States.Timeout" ],
+        "IntervalSeconds": 3,
+        "MaxAttempts": 2,
+        "BackoffRate": 1.5
+      } ]
+    },
+    "Create SPLUNK-LAMBDA-SPLUNK":{
+      "Comment": "Lambda to create SPLUNK-LAMBDA-SPLUNK Delivery Stream",
+      "Type": "Task",
+      "Resource": "",
+      "Next": "Wait for SPLUNK-LAMBDA-SPLUNK Creation",
+      "Retry": [ {
+        "ErrorEquals": [ "States.Timeout" ],
+        "IntervalSeconds": 3,
+        "MaxAttempts": 2,
+        "BackoffRate": 1.5
+      } ] 
+    },
+    "Wait for SPLUNK-LAMBDA-SPLUNK Creation":{
+      "Comment": "Waiting to complete SPLUNK-LAMBDA-SPLUNK Delivery Stream",
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Put Subscription SPLUNK-LAMBDA-SPLUNK"
+    },
+     "Put Subscription SPLUNK-LAMBDA-SPLUNK":{
+       "Comment": "Lambda to do put subscription on SPLUNK-VPC-TRANSFORM lambda log group to SPLUNK-LAMBDA-SPLUNK Delivery Stream",
+       "Type": "Task",
+       "Resource": "",
+       "Next": "Wait for Put Subscription SPLUNK-LAMBDA-SPLUNK",
+       "Retry": [ {
+        "ErrorEquals": [ "States.Timeout" ],
+        "IntervalSeconds": 3,
+        "MaxAttempts": 2,
+        "BackoffRate": 1.5
+      } ]
+     },
+    "Wait for Put Subscription SPLUNK-LAMBDA-SPLUNK":{
+      "Comment": "Waiting to complete put subscription",
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "Create SPLUNK-S3-CLEANUP Lambda"      
+    },
+    "Create SPLUNK-S3-CLEANUP Lambda": {
+      "Comment": "Lambda to create SPLUNK-S3-CLEANUP Lambda function",
+      "Type": "Task",
+      "Resource":"",
+      "Next": "Create CW Rule"
+    },
+    "Create CW Rule":{
+      "Comment": "Lambda to create CloudWatch Rule to schedule SPLUNK-S3-CLEANUP",
+      "Type": "Task",
+      "Resource": "",
+      "End": true 
+    },
+    "DefaultState":{
+      "Type": "Fail",
+      "Error": "DefaultStateError",
+      "Cause": "No Matches!"
+    },
+    "End State":{
+      "Type": "Pass",
+      "End": true
+    }
+  }
+}
